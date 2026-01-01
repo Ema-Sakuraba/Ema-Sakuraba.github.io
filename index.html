@@ -38,7 +38,7 @@
                 this.y = y;
                 this.v = { x: (Math.random() - 0.5) * 4, y: (Math.random() - 0.5) * 4 };
                 this.radius = 15;
-                this.color = color;
+                this.color = color; // 这里的 color 现在是每个手指独立的色相值
                 this.alpha = 1;
             }
             draw() {
@@ -55,16 +55,21 @@
             }
         }
 
-        let hue = 0;
+        // 移除全局 hue 变量，改用基于 touch identifier 的逻辑
         function handleTouch(e) {
             e.preventDefault();
             for (let i = 0; i < e.touches.length; i++) {
                 const touch = e.touches[i];
+                
+                // --- 核心修改点 ---
+                // 使用 touch.identifier (每个手指唯一的数字) 来计算颜色
+                // 乘以 40 是为了让相邻的手指颜色区分更明显
+                const touchHue = (touch.identifier * 40) % 360;
+                
                 for (let j = 0; j < 3; j++) {
-                    dots.push(new Dot(touch.clientX, touch.clientY, hue));
+                    dots.push(new Dot(touch.clientX, touch.clientY, touchHue));
                 }
             }
-            hue = (hue + 2) % 360;
         }
 
         function loop() {
