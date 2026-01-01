@@ -3,19 +3,10 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
-    <title>Sakurabaema Emoji Meteor Shower</title>
+    <title>Sakurabaema Cosmic Exp</title>
     <style>
-        body {
-            margin: 0;
-            overflow: hidden;
-            background: #000;
-            touch-action: none;
-        }
-        canvas {
-            display: block;
-            width: 100vw;
-            height: 100vh;
-        }
+        body { margin: 0; overflow: hidden; background: #000; touch-action: none; }
+        canvas { display: block; width: 100vw; height: 100vh; }
     </style>
 </head>
 <body>
@@ -27,12 +18,13 @@
         
         let dots = [];
         let emojis = [];
-        // 既然你的 ID 是 sakurabaema，我特意多加了些樱花和星星
-        const emojiList = ['🌸', '✨', '⭐', '🌠', '🌸', '💫', '💎'];
+        const emojiList = ['🌸', '✨', '⭐', '🌠'];
+        
+        // 进度控制
+        let skyProgress = 0; // 0 到 100
+        let autoMeteorTimer = 0;
 
-        let touchStartTime = 0;
-        let startX = 0;
-        let startY = 0;
+        let touchStart = { x: 0, y: 0, time: 0 };
 
         function resize() {
             canvas.width = window.innerWidth * window.devicePixelRatio;
@@ -42,128 +34,108 @@
 
         class Dot {
             constructor(x, y, color) {
-                this.x = x;
-                this.y = y;
-                this.v = { x: (Math.random() - 0.5) * 4, y: (Math.random() - 0.5) * 4 };
-                this.radius = 15;
+                this.x = x; this.y = y;
+                this.v = { x: (Math.random() - 0.5) * 3, y: (Math.random() - 0.5) * 3 };
+                this.radius = 12;
                 this.color = color;
                 this.alpha = 1;
             }
+            update() {
+                this.x += this.v.x; this.y += this.v.y;
+                this.alpha -= 0.02;
+                this.radius *= 0.96;
+            }
             draw() {
-                ctx.save();
+                ctx.fillStyle = `hsla(${this.color}, 100%, 60%, ${this.alpha})`;
                 ctx.beginPath();
                 ctx.arc(this.x, this.y, this.radius, 0, Math.PI * 2);
-                ctx.fillStyle = `hsla(${this.color}, 100%, 50%, ${this.alpha})`;
                 ctx.fill();
-                ctx.restore();
-            }
-            update() {
-                this.x += this.v.x;
-                this.y += this.v.y;
-                this.alpha -= 0.015;
-                this.radius *= 0.98;
             }
         }
 
-        class EmojiParticle {
-            constructor() {
-                // --- 修改点：让流星从屏幕上方或右侧随机出现 ---
-                if (Math.random() > 0.5) {
-                    this.x = Math.random() * window.innerWidth + (window.innerWidth / 2); // 屏幕右侧区域
-                    this.y = -50; // 屏幕上方以外
-                } else {
-                    this.x = window.innerWidth + 50; // 屏幕右侧以外
-                    this.y = Math.random() * (window.innerHeight / 2); // 屏幕上半部分
-                }
-
+        class Meteor {
+            constructor(isAuto = false) {
+                // 屏幕优化：从右上方扇区随机生成
+                this.x = Math.random() * window.innerWidth + (window.innerWidth / 3);
+                this.y = -20;
                 this.char = emojiList[Math.floor(Math.random() * emojiList.length)];
-                this.size = Math.random() * 15 + 20;
-                
-                // 统一向左下方俯冲的速度
-                this.vx = -(Math.random() * 8 + 10); 
-                this.vy = (Math.random() * 8 + 8);
-                
+                this.size = isAuto ? 15 : 22; // 自动落下的流星稍小，更精致
+                this.vx = -(Math.random() * 5 + 6); 
+                this.vy = (Math.random() * 5 + 5);
                 this.alpha = 1;
-                this.rotation = Math.random() * Math.PI * 2;
-                this.rotSpeed = 0.1;
+            }
+            update() {
+                this.x += this.vx;
+                this.y += this.vy;
+                if (this.x < -50 || this.y > window.innerHeight + 50) this.alpha = 0;
             }
             draw() {
                 ctx.save();
                 ctx.globalAlpha = this.alpha;
                 ctx.font = `${this.size}px serif`;
-                ctx.translate(this.x, this.y);
-                ctx.rotate(this.rotation);
-                ctx.fillText(this.char, -this.size/2, this.size/2);
+                ctx.fillText(this.char, this.x, this.y);
                 ctx.restore();
             }
-            update() {
-                this.x += this.vx;
-                this.y += this.vy;
-                // 流星划过不需要太重的重力，保持斜向下俯冲
-                this.rotation += this.rotSpeed;
-                
-                // 当流星飞出屏幕或透明度为0时消失
-                if (this.x < -50 || this.y > window.innerHeight + 50) {
-                    this.alpha = 0;
-                }
+        }
+
+        function triggerStorm(count) {
+            for (let i = 0; i < count; i++) {
+                setTimeout(() => emojis.push(new Meteor()), i * 50);
             }
         }
 
         window.addEventListener('touchstart', (e) => {
-            const touch = e.touches[0];
-            startX = touch.clientX;
-            startY = touch.clientY;
-            touchStartTime = Date.now();
-        }, {passive: false});
+            touchStart = { x: e.touches[0].clientX, y: e.touches[0].clientY, time: Date.now() };
+        });
 
         window.addEventListener('touchmove', (e) => {
             e.preventDefault();
-            for (let i = 0; i < e.touches.length; i++) {
-                const touch = e.touches[i];
-                const touchHue = (touch.identifier * 40) % 360;
-                for (let j = 0; j < 2; j++) {
-                    dots.push(new Dot(touch.clientX, touch.clientY, touchHue));
-                }
+            const touch = e.touches[0];
+            const hue = (touch.identifier * 50) % 360;
+            
+            // 性能优化：限制普通粒子产生频率
+            if (dots.length < 100) {
+                dots.push(new Dot(touch.clientX, touch.clientY, hue));
             }
+
+            // 划动增加背景进度
+            if (skyProgress < 100) skyProgress += 0.1;
         }, {passive: false});
 
         window.addEventListener('touchend', (e) => {
             const touch = e.changedTouches[0];
-            const dx = touch.clientX - startX;
-            const dy = touch.clientY - startY;
-            const duration = Date.now() - touchStartTime;
+            const dx = touch.clientX - touchStart.x;
+            const dy = touch.clientY - touchStart.y;
+            const duration = Date.now() - touchStart.time;
 
-            // 触发条件：向左下快划
             if (dx < -60 && dy > 60 && duration < 250) {
-                triggerFullStorm();
+                triggerStorm(20); // 减少单次数量至20，防卡顿
             }
         });
 
-        function triggerFullStorm() {
-            // 一次生成 60 个流星，产生全屏感
-            for (let i = 0; i < 60; i++) {
-                // 稍微延迟生成，让流星雨有前后错落感
-                setTimeout(() => {
-                    emojis.push(new EmojiParticle());
-                }, i * 10);
-            }
-        }
-
         function loop() {
-            ctx.fillStyle = 'rgba(0, 0, 0, 0.2)';
+            // 背景随进度由黑变深蓝
+            const blueValue = Math.floor((skyProgress / 100) * 20); // 最大深蓝值
+            ctx.fillStyle = `rgba(0, 0, ${blueValue}, 0.2)`;
             ctx.fillRect(0, 0, canvas.width, canvas.height);
-            
+
+            // 自动流星逻辑
+            if (skyProgress > 80) {
+                autoMeteorTimer++;
+                if (autoMeteorTimer > 120) { // 约每2秒一颗
+                    emojis.push(new Meteor(true));
+                    autoMeteorTimer = 0;
+                }
+            }
+
+            // 限制数组长度，双重保险防卡顿
+            if (dots.length > 150) dots.shift();
+
             dots = dots.filter(d => d.alpha > 0);
-            dots.forEach(d => {
-                d.update();
-                d.draw();
-            });
+            dots.forEach(d => { d.update(); d.draw(); });
 
             emojis = emojis.filter(e => e.alpha > 0);
-            emojis.forEach(e => {
-                e.update();
-                e.draw();
-            });
+            emojis.forEach(e => { e.update(); e.draw(); });
 
             requestAnimationFrame(loop);
         }
