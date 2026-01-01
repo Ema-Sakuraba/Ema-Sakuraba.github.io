@@ -3,13 +3,13 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
-    <title>Sakurabaema Mobile Exp</title>
+    <title>Sakurabaema Mobile Exp - Emoji Storm</title>
     <style>
         body {
             margin: 0;
             overflow: hidden;
             background: #000;
-            touch-action: none;
+            touch-action: none; /* 防止页面缩放和滚动干扰 */
         }
         canvas {
             display: block;
@@ -24,28 +24,39 @@
     <script>
         const canvas = document.getElementById('canvas');
         const ctx = canvas.getContext('2d');
-        let dots = [];
         
+        let dots = [];
+        let emojis = [];
+        const emojiList = ['✨', '⭐', '🌠', '🌸', '🌈', '💎', '🔥'];
+
+        // 用于检测划动逻辑的变量
+        let touchStartTime = 0;
+        let startX = 0;
+        let startY = 0;
+
         function resize() {
             canvas.width = window.innerWidth * window.devicePixelRatio;
             canvas.height = window.innerHeight * window.devicePixelRatio;
             ctx.scale(window.devicePixelRatio, window.devicePixelRatio);
         }
 
+        // --- 普通彩色圆点类 ---
         class Dot {
             constructor(x, y, color) {
                 this.x = x;
                 this.y = y;
                 this.v = { x: (Math.random() - 0.5) * 4, y: (Math.random() - 0.5) * 4 };
                 this.radius = 15;
-                this.color = color; // 这里的 color 现在是每个手指独立的色相值
+                this.color = color;
                 this.alpha = 1;
             }
             draw() {
+                ctx.save();
                 ctx.beginPath();
                 ctx.arc(this.x, this.y, this.radius, 0, Math.PI * 2);
                 ctx.fillStyle = `hsla(${this.color}, 100%, 50%, ${this.alpha})`;
                 ctx.fill();
+                ctx.restore();
             }
             update() {
                 this.x += this.v.x;
@@ -55,37 +66,103 @@
             }
         }
 
-        // 移除全局 hue 变量，改用基于 touch identifier 的逻辑
-        function handleTouch(e) {
+        // --- Emoji 流星类 ---
+        class EmojiParticle {
+            constructor(x, y) {
+                this.x = x;
+                this.y = y;
+                this.char = emojiList[Math.floor(Math.random() * emojiList.length)];
+                this.size = Math.random() * 20 + 20;
+                // 初始速度：向左下方快速喷发
+                this.vx = (Math.random() - 0.8) * 12; 
+                this.vy = (Math.random() + 0.5) * 12;
+                this.alpha = 1;
+                this.rotation = Math.random() * Math.PI * 2;
+                this.rotSpeed = (Math.random() - 0.5) * 0.2;
+            }
+            draw() {
+                ctx.save();
+                ctx.globalAlpha = this.alpha;
+                ctx.font = `${this.size}px serif`;
+                ctx.translate(this.x, this.y);
+                ctx.rotate(this.rotation);
+                // 居中绘制 emoji
+                ctx.fillText(this.char, -this.size/2, this.size/2);
+                ctx.restore();
+            }
+            update() {
+                this.x += this.vx;
+                this.y += this.vy;
+                this.vy += 0.3; // 模拟重力效果
+                this.alpha -= 0.01; // 慢慢消失
+                this.rotation += this.rotSpeed;
+            }
+        }
+
+        // 事件监听：手指按下
+        window.addEventListener('touchstart', (e) => {
+            const touch = e.touches[0];
+            startX = touch.clientX;
+            startY = touch.clientY;
+            touchStartTime = Date.now();
+        }, {passive: false});
+
+        // 事件监听：手指移动（绘制彩色圆点）
+        window.addEventListener('touchmove', (e) => {
             e.preventDefault();
             for (let i = 0; i < e.touches.length; i++) {
                 const touch = e.touches[i];
-                
-                // --- 核心修改点 ---
-                // 使用 touch.identifier (每个手指唯一的数字) 来计算颜色
-                // 乘以 40 是为了让相邻的手指颜色区分更明显
                 const touchHue = (touch.identifier * 40) % 360;
-                
-                for (let j = 0; j < 3; j++) {
+                for (let j = 0; j < 2; j++) {
                     dots.push(new Dot(touch.clientX, touch.clientY, touchHue));
                 }
+            }
+        }, {passive: false});
+
+        // 事件监听：手指抬起（判断手势）
+        window.addEventListener('touchend', (e) => {
+            const touch = e.changedTouches[0];
+            const dx = touch.clientX - startX;
+            const dy = touch.clientY - startY;
+            const duration = Date.now() - touchStartTime;
+
+            // 逻辑判断：
+            // 1. dx < -80 (向左滑动超过80像素)
+            // 2. dy > 80 (向下滑动超过80像素)
+            // 3. duration < 300 (在300毫秒内完成，即快速划动)
+            if (dx < -80 && dy > 80 && duration < 300) {
+                triggerEmojiStorm(touch.clientX, touch.clientY);
+            }
+        });
+
+        function triggerEmojiStorm(x, y) {
+            for (let i = 0; i < 35; i++) {
+                emojis.push(new EmojiParticle(x, y));
             }
         }
 
         function loop() {
-            ctx.fillStyle = 'rgba(0, 0, 0, 0.15)';
+            // 背景半透明涂层，产生拖尾效果
+            ctx.fillStyle = 'rgba(0, 0, 0, 0.2)';
             ctx.fillRect(0, 0, canvas.width, canvas.height);
             
+            // 更新圆点
             dots = dots.filter(d => d.alpha > 0);
             dots.forEach(d => {
                 d.update();
                 d.draw();
             });
+
+            // 更新 Emoji
+            emojis = emojis.filter(e => e.alpha > 0);
+            emojis.forEach(e => {
+                e.update();
+                e.draw();
+            });
+
             requestAnimationFrame(loop);
         }
 
-        window.addEventListener('touchstart', handleTouch);
-        window.addEventListener('touchmove', handleTouch);
         window.addEventListener('resize', resize);
         
         resize();
