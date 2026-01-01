@@ -1,0 +1,104 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <title>Academic OS 原型预览</title>
+    <style>
+        :root { --sidebar-width: 220px; --bg: #f5f7fa; }
+        body { margin: 0; display: flex; height: 100vh; font-family: sans-serif; background: var(--bg); }
+        
+        /* 侧边栏 */
+        .sidebar {
+            width: var(--sidebar-width);
+            background: #202123; color: white;
+            display: flex; flex-direction: column; padding: 15px;
+        }
+
+        .nav-item {
+            padding: 12px; margin: 5px 0; border-radius: 8px;
+            cursor: pointer; display: flex; justify-content: space-between; align-items: center;
+            transition: background 0.3s;
+        }
+        .nav-item:hover { background: #343541; }
+        .nav-item.active { background: #007AFF; }
+
+        .close-btn { font-size: 12px; opacity: 0.5; padding: 2px 6px; }
+        .close-btn:hover { opacity: 1; background: rgba(255,255,255,0.2); border-radius: 4px; }
+
+        /* 内容区容器 */
+        .content-container { flex: 1; position: relative; background: white; }
+        
+        /* 模拟的 AI 窗口 */
+        .ai-view {
+            position: absolute; top: 0; left: 0; width: 100%; height: 100%;
+            display: none; border: none;
+        }
+        .ai-view.active { display: block; }
+
+        .placeholder {
+            display: flex; justify-content: center; align-items: center; height: 100%;
+            color: #888; flex-direction: column;
+        }
+    </style>
+</head>
+<body>
+
+<nav class="sidebar">
+    <div style="font-weight: bold; margin-bottom: 20px; font-size: 1.2rem;">🎓 Academic OS</div>
+    <div class="nav-item" onclick="switchAI('Gemini', 'https://gemini.google.com')">
+        <span>✨ Gemini</span>
+        <span class="close-btn" onclick="closeAI(event, 'Gemini')">×</span>
+    </div>
+    <div class="nav-item" onclick="switchAI('DeepSeek', 'https://chat.deepseek.com')">
+        <span>🐳 DeepSeek</span>
+        <span class="close-btn" onclick="closeAI(event, 'DeepSeek')">×</span>
+    </div>
+    <div class="nav-item" onclick="switchAI('ChatGPT', 'https://chatgpt.com')">
+        <span>🤖 ChatGPT</span>
+        <span class="close-btn" onclick="closeAI(event, 'ChatGPT')">×</span>
+    </div>
+</nav>
+
+<main class="content-container" id="container">
+    <div class="placeholder" id="home">
+        <h2>欢迎使用学术操作系统</h2>
+        <p>点击左侧工具开始（注：预览版由于浏览器限制，部分 AI 无法在内嵌页显示）</p>
+    </div>
+</main>
+
+<script>
+    const opened = {};
+
+    function switchAI(name, url) {
+        document.getElementById('home').style.display = 'none';
+        
+        // 如果没开过，就创建一个新的视图层
+        if (!opened[name]) {
+            const div = document.createElement('div');
+            div.id = 'view-' + name;
+            div.className = 'ai-view';
+            div.innerHTML = `<div style="padding:20px;"><h3>正在呼叫 ${name}...</h3><p>在最终打包的 .exe 中，这里会直接显示官网界面，且状态永不丢失。</p></div>`;
+            // 真实打包时，这里会通过 Pake 唤起独立窗口
+            document.getElementById('container').appendChild(div);
+            opened[name] = div;
+        }
+
+        // 隐藏所有，显示当前
+        Object.values(opened).forEach(v => v.classList.remove('active'));
+        opened[name].classList.add('active');
+        
+        // 高亮侧边栏状态（略）
+    }
+
+    function closeAI(event, name) {
+        event.stopPropagation(); // 防止触发切换
+        if (opened[name]) {
+            opened[name].remove();
+            delete opened[name];
+            document.getElementById('home').style.display = 'flex';
+        }
+    }
+</script>
+
+</body>
+</html>
