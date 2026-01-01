@@ -1,146 +1,170 @@
-const canvas = document.getElementById('canvas');
-const ctx = canvas.getContext('2d');
-let dots = [];
-let emojis = []; 
-const emojiList = ['✨', '⭐', '🌠', '🌸', '🔥', '💎'];
-
-// 用于手势检测的变量
-let touchStartTime = 0;
-let startX = 0;
-let startY = 0;
-
-function resize() {
-    canvas.width = window.innerWidth * window.devicePixelRatio;
-    canvas.height = window.innerHeight * window.devicePixelRatio;
-    ctx.scale(window.devicePixelRatio, window.devicePixelRatio);
-}
-
-// 普通交互粒子
-class Dot {
-    constructor(x, y, color) {
-        this.x = x;
-        this.y = y;
-        this.v = { x: (Math.random() - 0.5) * 4, y: (Math.random() - 0.5) * 4 };
-        this.radius = 15;
-        this.color = color;
-        this.alpha = 1;
-    }
-    draw() {
-        ctx.save();
-        ctx.beginPath();
-        ctx.arc(this.x, this.y, this.radius, 0, Math.PI * 2);
-        ctx.fillStyle = `hsla(${this.color}, 100%, 50%, ${this.alpha})`;
-        ctx.fill();
-        ctx.restore();
-    }
-    update() {
-        this.x += this.v.x;
-        this.y += this.v.y;
-        this.alpha -= 0.015;
-        this.radius *= 0.98;
-    }
-}
-
-// --- 优化后的 Emoji 粒子类 ---
-class EmojiParticle {
-    constructor(x, y, angle) {
-        this.x = x;
-        this.y = y;
-        this.char = emojiList[Math.floor(Math.random() * emojiList.length)];
-        this.size = Math.random() * 20 + 20;
-        
-        // 基于划动角度生成速度，增加一定的随机偏移，形成扇形喷射
-        const spread = (Math.random() - 0.5) * 1.5; // 扩散范围
-        const speed = Math.random() * 15 + 5;
-        this.vx = Math.cos(angle + spread) * speed;
-        this.vy = Math.sin(angle + spread) * speed;
-        
-        this.alpha = 1;
-        this.rotation = Math.random() * Math.PI * 2;
-    }
-    draw() {
-        ctx.save();
-        ctx.globalAlpha = this.alpha;
-        ctx.font = `${this.size}px serif`;
-        ctx.translate(this.x, this.y);
-        ctx.rotate(this.rotation);
-        ctx.fillText(this.char, -this.size/2, this.size/2);
-        ctx.restore();
-    }
-    update() {
-        this.x += this.vx;
-        this.y += this.vy;
-        this.vy += 0.2; // 模拟重力
-        this.alpha -= 0.01;
-        this.rotation += 0.1;
-    }
-}
-
-function handleTouchStart(e) {
-    const touch = e.touches[0];
-    startX = touch.clientX;
-    startY = touch.clientY;
-    touchStartTime = Date.now();
-}
-
-function handleTouchMove(e) {
-    e.preventDefault();
-    for (let i = 0; i < e.touches.length; i++) {
-        const touch = e.touches[i];
-        const touchHue = (touch.identifier * 40) % 360;
-        for (let j = 0; j < 2; j++) {
-            dots.push(new Dot(touch.clientX, touch.clientY, touchHue));
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+    <title>Emoji 任意划动特效</title>
+    <style>
+        /* 关键：确保画布铺满全屏，且背景为黑色 */
+        body {
+            margin: 0;
+            overflow: hidden;
+            background-color: #000;
         }
-    }
-}
+        canvas {
+            display: block;
+            touch-action: none; /* 防止移动端浏览器默认的下拉刷新 */
+        }
+    </style>
+</head>
+<body>
 
-function handleTouchEnd(e) {
-    const touch = e.changedTouches[0];
-    const dx = touch.clientX - startX;
-    const dy = touch.clientY - startY;
-    const duration = Date.now() - touchStartTime;
+    <canvas id="canvas"></canvas>
 
-    // 计算划动的欧几里得距离
-    const distance = Math.sqrt(dx * dx + dy * dy);
+    <script>
+        const canvas = document.getElementById('canvas');
+        const ctx = canvas.getContext('2d');
+        let dots = [];
+        let emojis = []; 
+        const emojiList = ['✨', '⭐', '🌠', '🌸', '🔥', '💎'];
 
-    // 判断条件：距离超过 80 像素，且时间短于 300ms（即快划）
-    if (distance > 80 && duration < 300) {
-        // 计算划动的角度 (弧度)
-        const angle = Math.atan2(dy, dx);
-        triggerEmojiStorm(touch.clientX, touch.clientY, angle);
-    }
-}
+        let touchStartTime = 0;
+        let startX = 0;
+        let startY = 0;
 
-function triggerEmojiStorm(x, y, angle) {
-    for (let i = 0; i < 40; i++) {
-        // 将划动角度传入，让粒子沿划动方向飞出
-        emojis.push(new EmojiParticle(x, y, angle));
-    }
-}
+        // 初始化画布大小
+        function resize() {
+            canvas.width = window.innerWidth * window.devicePixelRatio;
+            canvas.height = window.innerHeight * window.devicePixelRatio;
+            // 只有在获取了 context 后才能 scale
+            ctx.setTransform(window.devicePixelRatio, 0, 0, window.devicePixelRatio, 0, 0);
+        }
 
-function loop() {
-    ctx.fillStyle = 'rgba(0, 0, 0, 0.15)';
-    ctx.fillRect(0, 0, canvas.width, canvas.height);
-    
-    dots = dots.filter(d => d.alpha > 0);
-    dots.forEach(d => {
-        d.update();
-        d.draw();
-    });
+        class Dot {
+            constructor(x, y, color) {
+                this.x = x;
+                this.y = y;
+                this.v = { x: (Math.random() - 0.5) * 4, y: (Math.random() - 0.5) * 4 };
+                this.radius = 15;
+                this.color = color;
+                this.alpha = 1;
+            }
+            draw() {
+                ctx.save();
+                ctx.beginPath();
+                ctx.arc(this.x, this.y, this.radius, 0, Math.PI * 2);
+                ctx.fillStyle = `hsla(${this.color}, 100%, 50%, ${this.alpha})`;
+                ctx.fill();
+                ctx.restore();
+            }
+            update() {
+                this.x += this.v.x;
+                this.y += this.v.y;
+                this.alpha -= 0.015;
+                this.radius *= 0.98;
+            }
+        }
 
-    emojis = emojis.filter(e => e.alpha > 0);
-    emojis.forEach(e => {
-        e.update();
-        e.draw();
-    });
+        class EmojiParticle {
+            constructor(x, y, angle) {
+                this.x = x;
+                this.y = y;
+                this.char = emojiList[Math.floor(Math.random() * emojiList.length)];
+                this.size = Math.random() * 20 + 20;
+                
+                // 沿着划动方向喷射
+                const spread = (Math.random() - 0.5) * 1.5; 
+                const speed = Math.random() * 15 + 10;
+                this.vx = Math.cos(angle + spread) * speed;
+                this.vy = Math.sin(angle + spread) * speed;
+                
+                this.alpha = 1;
+                this.rotation = Math.random() * Math.PI * 2;
+            }
+            draw() {
+                ctx.save();
+                ctx.globalAlpha = this.alpha;
+                ctx.font = `${this.size}px serif`;
+                ctx.translate(this.x, this.y);
+                ctx.rotate(this.rotation);
+                ctx.fillText(this.char, -this.size/2, this.size/2);
+                ctx.restore();
+            }
+            update() {
+                this.x += this.vx;
+                this.y += this.vy;
+                this.vy += 0.3; // 重力效果
+                this.alpha -= 0.01;
+                this.rotation += 0.1;
+            }
+        }
 
-    requestAnimationFrame(loop);
-}
+        function handleTouchStart(e) {
+            const touch = e.touches[0];
+            startX = touch.clientX;
+            startY = touch.clientY;
+            touchStartTime = Date.now();
+        }
 
-window.addEventListener('touchstart', handleTouchStart, {passive: false});
-window.addEventListener('touchmove', handleTouchMove, {passive: false});
-window.addEventListener('touchend', handleTouchEnd);
-window.addEventListener('resize', resize);
+        function handleTouchMove(e) {
+            e.preventDefault();
+            for (let i = 0; i < e.touches.length; i++) {
+                const touch = e.touches[i];
+                const touchHue = (touch.identifier * 40) % 360;
+                for (let j = 0; j < 2; j++) {
+                    dots.push(new Dot(touch.clientX, touch.clientY, touchHue));
+                }
+            }
+        }
 
-resize();
-loop();
+        function handleTouchEnd(e) {
+            const touch = e.changedTouches[0];
+            const dx = touch.clientX - startX;
+            const dy = touch.clientY - startY;
+            const duration = Date.now() - touchStartTime;
+
+            const distance = Math.sqrt(dx * dx + dy * dy);
+
+            // 任意方向快划判定
+            if (distance > 50 && duration < 300) {
+                const angle = Math.atan2(dy, dx);
+                triggerEmojiStorm(touch.clientX, touch.clientY, angle);
+            }
+        }
+
+        function triggerEmojiStorm(x, y, angle) {
+            for (let i = 0; i < 40; i++) {
+                emojis.push(new EmojiParticle(x, y, angle));
+            }
+        }
+
+        function loop() {
+            // 尾迹效果
+            ctx.fillStyle = 'rgba(0, 0, 0, 0.2)';
+            ctx.fillRect(0, 0, canvas.width, canvas.height);
+            
+            dots = dots.filter(d => d.alpha > 0);
+            dots.forEach(d => {
+                d.update();
+                d.draw();
+            });
+
+            emojis = emojis.filter(e => e.alpha > 0);
+            emojis.forEach(e => {
+                e.update();
+                e.draw();
+            });
+
+            requestAnimationFrame(loop);
+        }
+
+        window.addEventListener('touchstart', handleTouchStart, {passive: false});
+        window.addEventListener('touchmove', handleTouchMove, {passive: false});
+        window.addEventListener('touchend', handleTouchEnd);
+        window.addEventListener('resize', resize);
+
+        resize();
+        loop();
+    </script>
+</body>
+</html>
